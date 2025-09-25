@@ -43,7 +43,6 @@ class NKNWrapper(object):
     def _build_layers(self, hparams):
         self._layers = [self._LAYERS[l['name']](**l['params']) for l in hparams]
 
-    @tf.function(reduce_retracing=True)
     def forward(self, input):
         outputs = input  # shape = (shape of K or K_diag, input_dim)
         for l in self._layers:

@@ -16,6 +16,10 @@ from .kernels_gpflow.neural_kernel_network import NeuralKernelNetwork
 from .kernels_gpflow.utils import count_n_features, set_default_kernel_args
 from .utils import normalize_data, denormalize_data
 
+try:
+     import tf_keras
+except ModuleNotFoundError:
+     import tensorflow.keras as tf_keras
 
 class SingleGP():
     '''
@@ -156,7 +160,8 @@ class SingleGP():
                 optimizer_parameters = default_optimizer_args_dict["Adam"]
 
             def run_optimizer(model: GPR):
-                opt = tf.optimizers.Adam(**optimizer_parameters)
+                # opt = tf.optimizers.Adam(**optimizer_parameters)
+                opt = tf_keras.optimizers.Adam(**optimizer_parameters)
                 training_loss = model.training_loss_closure()
 
                 @tf.function
