@@ -49,10 +49,6 @@ _KERNEL_DICT=dict(
     SpectralMixture_Sun_et_al=spectral_mixture_Sun_et_al  # Spectral Mixture Kernel by Sun et al.
 )
 
-# DTYPE is set to the default_float using in GPflow
-DTYPE=gpflow.config.default_float()
-
-
 class NeuralKernelNetwork(gpflow.kernels.Kernel):
     def __init__(self,
                  primitive_kernels: List[dict],
@@ -137,67 +133,28 @@ class NeuralKernelNetwork(gpflow.kernels.Kernel):
                                     transform=self._primitive_kernels[i].kernels[j].kernels[k].lengthscales.transform)
 
 
-    # # Decorate with the tf.function decorator for faster execution
-    # @tf.function
-    # def K_diag(self, X):
-    #     # Series of  {K_diag^i(X, X2)}_{i=1, ..., k}, shape = (N, k) where N and k stand for
-    #     # number of samples and primitive kernels, respectively.
-    #     primitive_values = tf.stack(
-    #         [kern.K_diag(X)
-    #          for kern in self._primitive_kernels],
-    #         axis=-1)
-    #     return self._nknWrapper.forward(primitive_values)
-
-    # # Decorate with the tf.function decorator for faster execution
-    # @tf.function
-    # def K(self, X, X2=None):
-    #     # Series of  {K_diag^i(X, X2)}_{i=1, ..., k}, shape = (N, N, k) where N and k stand for
-    #     # number of samples and primitive kernels, respectively
-    #     primitive_values = tf.stack(
-    #         [kern.K(X, X2)
-    #          for kern in self._primitive_kernels],
-    #         axis=-1)
-    #     return self._nknWrapper.forward(primitive_values)
-
-    # 追加: 入力の前処理ヘルパ
-    def _prepare_inputs(self, X, X2):
-        X = tf.convert_to_tensor(X, dtype=DTYPE)
-        X2 = tf.convert_to_tensor(X2, dtype=DTYPE)
-        return X, X2
-
-    # 変更: 公開APIは軽いラッパ（Python分岐あり = retrace原因をここで解消）
+    # Decorate with the tf.function decorator for faster execution
+    @tf.function
     def K_diag(self, X):
-        X = tf.convert_to_tensor(X, dtype=DTYPE)
-        return self._K_diag(X)
+        # Series of  {K_diag^i(X, X2)}_{i=1, ..., k}, shape = (N, k) where N and k stand for
+        # number of samples and primitive kernels, respectively.
+        primitive_values = tf.stack(
+            [kern.K_diag(X)
+             for kern in self._primitive_kernels],
+            axis=-1)
+        return self._nknWrapper.forward(primitive_values)
 
+    # Decorate with the tf.function decorator for faster execution
+    @tf.function
     def K(self, X, X2=None):
-        if X2 is None:
-            X2 = X
-        X, X2 = self._prepare_inputs(X, X2)
-        return self._K(X, X2)
-
-    # 追加: 固定署名付き・実体（トレース対象は常に同じシグネチャ）
-    @tf.function(
-        reduce_retracing=True,
-        input_signature=[tf.TensorSpec(shape=[None, None], dtype=DTYPE)]
-    )
-    def _K_diag(self, X):
-        primitive_values = tf.stack([kern.K_diag(X) for kern in self._primitive_kernels], axis=-1)
+        # Series of  {K_diag^i(X, X2)}_{i=1, ..., k}, shape = (N, N, k) where N and k stand for
+        # number of samples and primitive kernels, respectively
+        primitive_values = tf.stack(
+            [kern.K(X, X2)
+             for kern in self._primitive_kernels],
+            axis=-1)
         return self._nknWrapper.forward(primitive_values)
 
-    @tf.function(
-        reduce_retracing=True,
-        input_signature=[
-            tf.TensorSpec(shape=[None, None], dtype=DTYPE),  # X: [N, D]
-            tf.TensorSpec(shape=[None, None], dtype=DTYPE),  # X2: [M, D]
-        ]
-    )
-    def _K(self, X, X2):
-        primitive_values = tf.stack([kern.K(X, X2) for kern in self._primitive_kernels], axis=-1)
-        return self._nknWrapper.forward(primitive_values)
-
-
-    
     @property
     def polynomial(self):
         """
